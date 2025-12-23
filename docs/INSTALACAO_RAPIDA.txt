@@ -1,0 +1,82 @@
+============================================================
+     MERCADINHO PDV - INSTALAÇÃO RÁPIDA (CHECKLIST)
+============================================================
+
+ARQUIVOS NECESSÁRIOS (pendrive):
+  [ ] postgresql-15.4-1-windows-x64.exe (~300MB)
+  [ ] Mercadinho PDV Setup 1.0.0.exe (~200MB)
+
+============================================================
+PASSO 1: INSTALAR POSTGRESQL
+============================================================
+
+1. Executar: postgresql-15.4-1-windows-x64.exe
+2. Clicar Next em tudo, EXCETO:
+   
+   >>> SENHA: postgres123
+   >>> PORTA: 5432 (padrão)
+   
+3. No final, DESMARCAR "Launch Stack Builder"
+4. Finish
+
+============================================================
+PASSO 2: CRIAR BANCO DE DADOS
+============================================================
+
+Abrir CMD e executar:
+
+"C:\Program Files\PostgreSQL\15\bin\psql" -U postgres
+
+Senha: postgres123
+
+Depois digitar:
+
+CREATE DATABASE mercadinho_local;
+\q
+
+============================================================
+PASSO 3: INSTALAR MERCADINHO PDV
+============================================================
+
+1. Executar: Mercadinho PDV Setup 1.0.0.exe
+2. Next > Next > Install > Finish
+3. Aplicativo abre automaticamente
+
+============================================================
+CONFIGURAÇÃO PADRÃO (AUTOMÁTICA)
+============================================================
+
+Banco: mercadinho_local
+Porta: 5432
+Usuário: postgres
+Senha: postgres123
+
+============================================================
+SE DER ERRO
+============================================================
+
+1. Verificar se PostgreSQL está rodando:
+   - Abrir services.msc
+   - Procurar "postgresql-x64-15"
+   - Se parado, iniciar
+
+2. Ver logs do app:
+   - Pasta: C:\Users\[USUARIO]\Mercadinho\logs\
+
+3. Pressionar F12 no app para ver erros
+
+============================================================
+COMANDOS ÚTEIS
+============================================================
+
+# Verificar PostgreSQL
+sc query postgresql-x64-15
+
+# Recriar tabelas (se precisar)
+cd "%LOCALAPPDATA%\Programs\Mercadinho PDV\backend"
+set DATABASE_URL=postgresql://postgres:postgres123@localhost:5432/mercadinho_local
+npx prisma db push --accept-data-loss
+
+============================================================
+
+

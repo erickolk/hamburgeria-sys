@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: mercadinho_db
+    environment:
+      POSTGRES_DB: mercadinho
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    # Em produção, você pode remover o port mapping para não expor o Postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - mercadinho_network
+    restart: always
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mercadinho_backend
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres123@db:5432/mercadinho
+      JWT_SECRET: mercadinho_jwt_secret_key_2024
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+    networks:
+      - mercadinho_network
+    # Usa script de produção que aplica migrações (migrate deploy) e inicia o servidor
+    command: npm run start:prod
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mercadinho_frontend
+    environment:
+      # Usa o hostname interno do Compose para falar com o backend
+      NUXT_PUBLIC_API_BASE: http://backend:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - mercadinho_network
+    restart: always
+
+volumes:
+  postgres_data:
+
+networks:
+  mercadinho_network:
+    driver: bridge

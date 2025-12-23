@@ -1,0 +1,10 @@
+{
+  "version": "1.0.0",
+  "downloadUrl": "https://evomercearia-backend.d3vbpv.easypanel.host/uploads/Mercadinho-PDV-Setup-1.0.0.exe",
+  "changelog": "Versão inicial do Mercadinho PDV\n\n- Sistema de vendas (PDV)\n- Gestão de produtos e estoque\n- Cadastro de clientes\n- Relatórios básicos",
+  "releaseDate": "2024-12-23T10:00:00.000Z",
+  "size": "~150 MB",
+  "mandatory": false,
+  "minVersion": "0.0.0"
+}
+

@@ -1,0 +1,8 @@
+# Ignorar todos os arquivos de relatório
+*.txt
+
+# Exceto o .gitkeep
+!.gitkeep
+
+
+

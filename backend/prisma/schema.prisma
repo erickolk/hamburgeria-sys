@@ -1,0 +1,504 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(CASHIER)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sales          Sale[]
+  purchases      Purchase[]
+  stockMovements StockMovement[]
+  auditLogs      AuditLog[]
+  cashRegisters  CashRegister[]
+  cashMovements  CashMovement[]
+
+  @@map("users")
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  sku           String   @unique
+  name          String
+  barcode       String?  @unique
+  costPrice     Decimal  @map("cost_price") @db.Decimal(10, 2)
+  salePrice     Decimal  @map("sale_price") @db.Decimal(10, 2)
+  stockQuantity Decimal  @default(0) @map("stock_quantity") @db.Decimal(12, 3)
+  reorderPoint  Decimal  @default(0) @map("reorder_point") @db.Decimal(12, 3)
+  saleUnit      SaleUnit @default(UNIT) @map("sale_unit")
+  batchTracking Boolean  @default(false) @map("batch_tracking")
+  category      String?
+  categoryId    String?  @map("category_id")
+  observations  String?  @db.Text
+  supplierId    String?  @map("supplier_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Campos de sincronização
+  lastSyncAt   DateTime? @map("last_sync_at")
+  vpsUpdatedAt DateTime? @map("vps_updated_at")
+
+  // Relations
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
+  categoryRel    Category?       @relation(fields: [categoryId], references: [id])
+  saleItems      SaleItem[]
+  purchaseItems  PurchaseItem[]
+  stockMovements StockMovement[]
+  batches        ProductBatch[]
+  photos         ProductPhoto[]
+
+  @@map("products")
+}
+
+model Supplier {
+  id                String  @id @default(cuid())
+  name              String  @db.VarChar(255)
+  legalName         String? @map("legal_name") @db.VarChar(255)
+  contact           String? @db.VarChar(255)
+  phone             String? @db.VarChar(20)
+  email             String? @db.VarChar(255)
+  cnpj              String? @db.VarChar(18)
+  stateRegistration String? @map("state_registration") @db.VarChar(50)
+  paymentTerms      String? @map("payment_terms") @db.VarChar(100)
+  isActive          Boolean @default(true) @map("is_active")
+
+  // Endereço completo
+  addressStreet       String? @map("address_street") @db.VarChar(255)
+  addressNumber       String? @map("address_number") @db.VarChar(20)
+  addressComplement   String? @map("address_complement") @db.VarChar(100)
+  addressNeighborhood String? @map("address_neighborhood") @db.VarChar(100)
+  addressCity         String? @map("address_city") @db.VarChar(100)
+  addressState        String? @map("address_state") @db.VarChar(2)
+  addressZipCode      String? @map("address_zip_code") @db.VarChar(10)
+  addressCountry      String  @default("Brasil") @map("address_country") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  products  Product[]
+  purchases Purchase[]
+
+  @@map("suppliers")
+}
+
+model Customer {
+  id           String  @id @default(cuid())
+  name         String  @db.VarChar(255)
+  phone        String? @db.VarChar(20)
+  email        String? @db.VarChar(255)
+  document     String? @db.VarChar(20) // CPF/CNPJ
+  documentType String  @default("CPF") @map("document_type") @db.VarChar(10)
+  isActive     Boolean @default(true) @map("is_active")
+  note         String? @db.Text
+
+  // Endereço completo
+  addressStreet       String? @map("address_street") @db.VarChar(255)
+  addressNumber       String? @map("address_number") @db.VarChar(20)
+  addressComplement   String? @map("address_complement") @db.VarChar(100)
+  addressNeighborhood String? @map("address_neighborhood") @db.VarChar(100)
+  addressCity         String? @map("address_city") @db.VarChar(100)
+  addressState        String? @map("address_state") @db.VarChar(2)
+  addressZipCode      String? @map("address_zip_code") @db.VarChar(10)
+  addressCountry      String  @default("Brasil") @map("address_country") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Campos de sincronização
+  synced   Boolean   @default(false)
+  syncedAt DateTime? @map("synced_at")
+
+  // Relations
+  sales Sale[]
+
+  @@map("customers")
+}
+
+model Sale {
+  id         String     @id @default(cuid())
+  userId     String     @map("user_id")
+  customerId String?    @map("customer_id")
+  total      Decimal    @db.Decimal(10, 2)
+  discount   Decimal    @default(0) @db.Decimal(10, 2)
+  payments   Json // Array of payment methods and amounts
+  status     SaleStatus @default(COMPLETED)
+  date       DateTime   @default(now())
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  // Campos de sincronização
+  synced         Boolean   @default(false)
+  syncedAt       DateTime? @map("synced_at")
+  localId        String    @unique @default(cuid()) @map("local_id")
+  vpsId          String?   @unique @map("vps_id")
+  createdLocally Boolean   @default(true) @map("created_locally")
+
+  // Relations
+  user      User       @relation(fields: [userId], references: [id])
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  saleItems SaleItem[]
+
+  @@index([synced, createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String  @map("sale_id")
+  productId String  @map("product_id")
+  quantity  Decimal @db.Decimal(12, 3)
+  unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
+  discount  Decimal @default(0) @db.Decimal(10, 2)
+  batchId   String? @map("batch_id")
+
+  // Campos de sincronização
+  synced   Boolean   @default(false)
+  syncedAt DateTime? @map("synced_at")
+
+  // Relations
+  sale    Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id])
+  batch   ProductBatch? @relation(fields: [batchId], references: [id])
+
+  @@map("sale_items")
+}
+
+model Purchase {
+  id         String         @id @default(cuid())
+  supplierId String         @map("supplier_id")
+  userId     String         @map("user_id")
+  total      Decimal        @db.Decimal(10, 2)
+  status     PurchaseStatus @default(PENDING)
+  date       DateTime       @default(now())
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  // Relations
+  supplier      Supplier       @relation(fields: [supplierId], references: [id])
+  user          User           @relation(fields: [userId], references: [id])
+  purchaseItems PurchaseItem[]
+
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id         String  @id @default(cuid())
+  purchaseId String  @map("purchase_id")
+  productId  String  @map("product_id")
+  quantity   Decimal @db.Decimal(12, 3)
+  unitCost   Decimal @map("unit_cost") @db.Decimal(10, 2)
+  batchId    String? @map("batch_id")
+
+  // Relations
+  purchase Purchase      @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id])
+  batch    ProductBatch? @relation(fields: [batchId], references: [id])
+
+  @@map("purchase_items")
+}
+
+model StockMovement {
+  id          String            @id @default(cuid())
+  productId   String            @map("product_id")
+  quantity    Decimal           @db.Decimal(12, 3)
+  type        StockMovementType
+  reason      String?
+  referenceId String?           @map("reference_id") // ID da venda, compra, etc.
+  userId      String            @map("user_id")
+  date        DateTime          @default(now())
+  batchId     String?           @map("batch_id")
+
+  // Campos de sincronização
+  synced   Boolean   @default(false)
+  syncedAt DateTime? @map("synced_at")
+
+  // Relations
+  product Product       @relation(fields: [productId], references: [id])
+  user    User          @relation(fields: [userId], references: [id])
+  batch   ProductBatch? @relation(fields: [batchId], references: [id])
+
+  @@index([synced, date])
+  @@map("stock_movements")
+}
+
+model CashRegister {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  openedAt       DateTime  @default(now()) @map("opened_at")
+  closedAt       DateTime? @map("closed_at")
+  initialBalance Decimal   @map("initial_balance") @db.Decimal(10, 2)
+  finalBalance   Decimal?  @map("final_balance") @db.Decimal(10, 2)
+  status         String    @default("OPEN")
+
+  // Campos de sincronização
+  synced   Boolean   @default(false)
+  syncedAt DateTime? @map("synced_at")
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id])
+  cashMovements CashMovement[]
+
+  @@index([synced, openedAt])
+  @@map("cash_registers")
+}
+
+model CashMovement {
+  id             String           @id @default(cuid())
+  cashRegisterId String           @map("cash_register_id")
+  userId         String           @map("user_id")
+  type           CashMovementType
+  amount         Decimal          @db.Decimal(10, 2)
+  reason         String?
+  timestamp      DateTime         @default(now())
+
+  // Relations
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@map("cash_movements")
+}
+
+enum CashMovementType {
+  OPENING
+  WITHDRAWAL
+  SUPPLY
+  SALE
+  CLOSING
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  action    String
+  entity    String
+  entityId  String   @map("entity_id")
+  details   Json?
+  timestamp DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CASHIER
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUST
+  SALE
+  PURCHASE
+  RETURN
+}
+
+// Unidades de venda suportadas
+enum SaleUnit {
+  UN // Unidade
+  PC // Peça
+  CX // Caixa
+  DZ // Dúzia
+  KG // Quilograma
+  LT // Litro
+  MT // Metro
+  OUTRA // Outra
+  UNIT // Mantido para compatibilidade
+  L // Mantido para compatibilidade
+}
+
+// Lotes de produtos para rastreamento de validade e estoque por lote
+model ProductBatch {
+  id         String    @id @default(cuid())
+  productId  String    @map("product_id")
+  lotNumber  String    @map("lot_number")
+  expiryDate DateTime? @map("expiry_date")
+  quantity   Decimal   @default(0) @db.Decimal(12, 3)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  product        Product         @relation(fields: [productId], references: [id])
+  saleItems      SaleItem[]
+  purchaseItems  PurchaseItem[]
+  stockMovements StockMovement[]
+
+  @@map("product_batches")
+}
+
+// Categorias de produtos
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  products Product[]
+
+  @@map("categories")
+}
+
+// Fotos de produtos
+model ProductPhoto {
+  id        String   @id @default(cuid())
+  productId String   @map("product_id")
+  url       String
+  isMain    Boolean  @default(false) @map("is_main")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_photos")
+}
+
+// Configurações da Empresa
+model CompanySettings {
+  id      String  @id @default(cuid())
+  name    String  @db.VarChar(255)
+  cnpj    String  @db.VarChar(18)
+  phone   String  @db.VarChar(20)
+  website String? @db.VarChar(255)
+
+  // Endereço completo
+  zipCode      String  @map("zip_code") @db.VarChar(10)
+  street       String  @db.VarChar(255)
+  number       String  @db.VarChar(20)
+  complement   String? @db.VarChar(100)
+  neighborhood String  @db.VarChar(100)
+  city         String  @db.VarChar(100)
+  state        String  @db.VarChar(2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("company_settings")
+}
+
+// Sistema de Sincronização Offline-First
+
+// Fila de sincronização para operações pendentes
+model SyncQueue {
+  id          String    @id @default(cuid())
+  entity      String // "sale", "product", "customer"
+  entityId    String    @map("entity_id")
+  operation   String // "create", "update", "delete"
+  payload     Json // Dados completos
+  status      String    @default("pending") // "pending", "syncing", "success", "error", "failed"
+  attempts    Int       @default(0)
+  lastAttempt DateTime? @map("last_attempt")
+  error       String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([status, createdAt])
+  @@index([entity, entityId])
+  @@map("sync_queue")
+}
+
+// Log de sincronização para auditoria
+model SyncLog {
+  id        String   @id @default(cuid())
+  entity    String
+  entityId  String   @map("entity_id")
+  operation String
+  direction String // "upload" ou "download"
+  status    String // "success" ou "error"
+  details   Json?
+  timestamp DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([entity, direction])
+  @@map("sync_logs")
+}
+
+// Configurações de sincronização
+model SyncConfig {
+  id           String    @id @default(cuid())
+  vpsApiUrl    String    @map("vps_api_url") @db.VarChar(255)
+  syncToken    String    @map("sync_token") @db.VarChar(500)
+  syncInterval Int       @default(60000) @map("sync_interval") // Intervalo em ms
+  isEnabled    Boolean   @default(true) @map("is_enabled")
+  lastSync     DateTime? @map("last_sync")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("sync_config")
+}
+
+// ============================================
+// SISTEMA DE LICENCIAMENTO SAAS
+// ============================================
+
+// Licenças (VPS - Controlado pelo administrador do sistema)
+model License {
+  id          String        @id @default(cuid())
+  licenseKey  String        @unique @map("license_key")
+  cnpj        String        @unique @db.VarChar(18)
+  companyName String        @map("company_name") @db.VarChar(255)
+  email       String?       @db.VarChar(255)
+  phone       String?       @db.VarChar(20)
+  status      LicenseStatus @default(ACTIVE)
+  plan        String        @default("basic") @db.VarChar(50)
+  validUntil  DateTime      @map("valid_until")
+  lastCheckIn DateTime?     @map("last_check_in")
+  maxUsers    Int           @default(5) @map("max_users")
+  notes       String?       @db.Text
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@map("licenses")
+}
+
+enum LicenseStatus {
+  ACTIVE // Licença ativa e em dia
+  SUSPENDED // Suspensa temporariamente (inadimplência)
+  CANCELLED // Cancelada permanentemente
+  TRIAL // Período de teste
+}
+
+// Licença Local (PC do Cliente - Armazena token de validação)
+model LicenseLocal {
+  id           String   @id @default("local")
+  licenseKey   String   @map("license_key") @db.VarChar(100)
+  companyName  String   @map("company_name") @db.VarChar(255)
+  cnpj         String   @db.VarChar(18)
+  token        String   @db.Text
+  tokenExpiry  DateTime @map("token_expiry")
+  lastVerified DateTime @map("last_verified")
+  status       String   @default("active") @db.VarChar(20) // active, warning, critical, blocked
+  graceDays    Int      @default(0) @map("grace_days")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("license_local")
+}

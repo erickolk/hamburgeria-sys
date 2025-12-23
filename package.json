@@ -1,0 +1,146 @@
+{
+  "name": "mercadinho",
+  "version": "1.0.0",
+  "description": "Sistema de gestão para pequenos mercados - Desktop App",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"wait-on http://localhost:3000 && npm run dev:electron\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:electron": "electron .",
+    "dev:electron-only": "electron .",
+    "build": "npm run build:frontend && npm run build:electron",
+    "build:frontend": "cd frontend && npm run generate",
+    "build:backend": "cd backend && npm install --production && npx prisma generate",
+    "build:complete": "npm run build:backend && npm run build:frontend && npm run build:electron",
+    "build:electron": "electron-builder",
+    "build:electron:win": "electron-builder --win",
+    "build:electron:dir": "electron-builder --dir",
+    "prepare:node": "powershell -ExecutionPolicy Bypass -File scripts/prepare-node-portable.ps1",
+    "build:full": "npm run prepare:node && npm run build:backend && npm run build:frontend && npm run build:electron",
+    "postinstall": "cd backend && npm install && cd ../frontend && npm install",
+    "electron": "electron .",
+    "test": "cd backend && npm test"
+  },
+  "keywords": [
+    "mercadinho",
+    "pos",
+    "retail",
+    "electron",
+    "desktop",
+    "pdv"
+  ],
+  "author": "Sistema Mercadinho",
+  "license": "MIT",
+  "devDependencies": {
+    "7zip-bin": "^5.2.0",
+    "concurrently": "^8.2.2",
+    "electron": "^28.3.3",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.mercadinho.pdv",
+    "productName": "Mercadinho PDV",
+    "directories": {
+      "output": "C:/temp-mercadinho-dist",
+      "buildResources": "electron/build"
+    },
+    "npmRebuild": false,
+    "files": [
+      "electron/**/*",
+      "frontend/.output/**/*",
+      "!backend/**/*",
+      "!node-portable/**/*",
+      "!frontend/node_modules/**/*",
+      "!**/*.md",
+      "!**/.git/**/*"
+    ],
+    "asarUnpack": [
+      "backend/**/*"
+    ],
+    "extraFiles": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!**/*.md",
+          "!**/tests/**",
+          "!**/.git/**"
+        ]
+      },
+      {
+        "from": "node-portable",
+        "to": "node-portable",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "frontend/.output/public",
+        "to": "frontend/.output/public",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "signDlls": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mercadinho PDV",
+      "runAfterFinish": true,
+      "menuCategory": "Business",
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    },
+    "extraResources": [
+      {
+        "from": "installer/auto-setup.ps1",
+        "to": "installer/auto-setup.ps1"
+      },
+      {
+        "from": "installer/backup-database.ps1",
+        "to": "installer/backup-database.ps1"
+      },
+      {
+        "from": "installer/restore-database.ps1",
+        "to": "installer/restore-database.ps1"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "electron/assets/icon.png",
+      "category": "Office"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "electron/assets/icon.icns",
+      "category": "public.app-category.business"
+    }
+  },
+  "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
+    "electron-store": "^8.1.0",
+    "serialport": "^13.0.0"
+  }
+}

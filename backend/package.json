@@ -1,0 +1,56 @@
+{
+  "name": "mercadinho-backend",
+  "version": "1.0.0",
+  "description": "Sistema de mercadinho - Backend API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest",
+    "db:generate": "npx prisma generate",
+    "db:push": "npx prisma db push",
+    "db:seed": "node prisma/seed.js",
+    "db:reset": "npx prisma db push --force-reset && npm run db:seed",
+    "db:baseline": "node scripts/migrate-with-baseline.js",
+    "db:baseline-only": "node scripts/baseline-only.js",
+    "start:prod": "node scripts/migrate-with-baseline.js; node src/server.js",
+    "start:prod-safe": "node scripts/migrate-with-baseline.js && node src/server.js",
+    "setup:directories": "node scripts/setup-directories.js",
+    "test:tickets": "node scripts/test-ticket-report.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.7.1",
+    "axios": "^1.13.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "joi": "^17.11.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "node-cache": "^5.1.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2",
+    "prisma": "^5.7.1",
+    "supertest": "^6.3.3"
+  },
+  "keywords": [
+    "mercadinho",
+    "pos",
+    "retail",
+    "nodejs",
+    "express",
+    "postgresql"
+  ],
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "author": "Sistema Mercadinho",
+  "license": "MIT"
+}
