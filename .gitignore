@@ -51,3 +51,4 @@ node-portable/
 installer/
 node_modules/
 *.exe
+*.zip
