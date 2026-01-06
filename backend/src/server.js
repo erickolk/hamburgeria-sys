@@ -23,6 +23,7 @@ const syncRoutes = require('./routes/sync');
 const licenseRoutes = require('./routes/licenses');
 const licenseLocalRoutes = require('./routes/license-local');
 const updatesRoutes = require('./routes/updates');
+const hardwareRoutes = require('./routes/hardware');
 const swaggerSetup = require('./config/swagger');
 const syncService = require('./services/syncService');
 
@@ -178,6 +179,7 @@ app.use('/sync', syncRoutes);
 app.use('/licenses', licenseRoutes);
 app.use('/license', licenseLocalRoutes);
 app.use('/updates', updatesRoutes);
+app.use('/hardware', hardwareRoutes);
 app.use('/', productPhotoRoutes); // Rotas de fotos de produtos incluem o prefixo /products
 
 // Error handling middleware

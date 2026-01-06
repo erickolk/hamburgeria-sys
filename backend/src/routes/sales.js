@@ -21,6 +21,56 @@ router.use(authenticateToken);
 
 /**
  * @swagger
+ * /sales/printer/test:
+ *   post:
+ *     summary: Gerar ticket de teste para verificar impressora
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               printerName:
+ *                 type: string
+ *                 description: Nome da impressora (opcional)
+ *               printerModel:
+ *                 type: string
+ *                 description: Modelo da impressora (opcional)
+ *     responses:
+ *       200:
+ *         description: Ticket de teste gerado com sucesso
+ */
+router.post('/printer/test', async (req, res) => {
+  try {
+    const { printerName, printerModel } = req.body;
+    
+    const printerInfo = {
+      name: printerName || 'Impressora Termica',
+      model: printerModel || 'ESC/POS'
+    };
+
+    const ticketInfo = await thermalPrinterService.generateTestTicket(printerInfo);
+
+    res.json({
+      success: true,
+      message: 'Ticket de teste gerado com sucesso!',
+      ticket: {
+        filename: ticketInfo.filename,
+        filepath: ticketInfo.filepath
+      },
+      instructions: 'Use o arquivo gerado para testar a impressora. No Windows: copy /b "' + ticketInfo.filepath + '" "\\\\localhost\\NomeDaImpressora"'
+    });
+  } catch (error) {
+    console.error('Erro ao gerar ticket de teste:', error);
+    res.status(500).json({ error: 'Erro ao gerar ticket de teste' });
+  }
+});
+
+/**
+ * @swagger
  * /sales:
  *   get:
  *     summary: Listar vendas

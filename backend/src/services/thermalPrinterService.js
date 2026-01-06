@@ -1,10 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 const companySettingsService = require('./companySettingsService');
+
+const execAsync = promisify(exec);
 
 /**
  * Serviço para geração de tickets para impressora térmica
  * Gera arquivos de texto formatados para impressão em 58mm ou 80mm
+ * Suporta impressão direta via compartilhamento Windows
  */
 
 class ThermalPrinterService {
@@ -15,11 +20,111 @@ class ThermalPrinterService {
     
     // Largura padrão do papel (58mm = 32 caracteres, 80mm = 48 caracteres)
     this.paperWidth = 48;
+    
+    // Configuração da impressora
+    this.printerConfig = {
+      enabled: false,
+      shareName: '',
+      host: 'localhost'
+    };
   }
 
   ensureTicketsDirectory() {
     if (!fs.existsSync(this.ticketsDir)) {
       fs.mkdirSync(this.ticketsDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Configura a impressora térmica
+   */
+  setConfig(config) {
+    this.printerConfig = {
+      enabled: config.enabled ?? false,
+      shareName: config.shareName || '',
+      host: config.host || 'localhost'
+    };
+    console.log('[ThermalPrinter] Config atualizada:', this.printerConfig);
+  }
+
+  /**
+   * Obtém configuração atual
+   */
+  getConfig() {
+    return { ...this.printerConfig };
+  }
+
+  /**
+   * Envia arquivo para impressora via compartilhamento Windows
+   */
+  async printDirect(filepath) {
+    if (!this.printerConfig.enabled) {
+      return { success: false, message: 'Impressão direta não habilitada. Ative nas configurações.' };
+    }
+
+    if (!this.printerConfig.shareName) {
+      return { success: false, message: 'Nome do compartilhamento não configurado.' };
+    }
+
+    if (!fs.existsSync(filepath)) {
+      return { success: false, message: 'Arquivo não encontrado: ' + filepath };
+    }
+
+    try {
+      const printerPath = `\\\\${this.printerConfig.host}\\${this.printerConfig.shareName}`;
+      const command = `copy /b "${filepath}" "${printerPath}"`;
+      
+      console.log('[ThermalPrinter] Enviando:', command);
+      
+      await execAsync(command, { shell: 'cmd.exe', windowsHide: true });
+      
+      console.log('[ThermalPrinter] Enviado com sucesso!');
+      return { success: true, message: 'Documento enviado para impressora!' };
+    } catch (error) {
+      console.error('[ThermalPrinter] Erro:', error.message);
+      
+      let msg = 'Erro ao enviar para impressora.';
+      if (error.message.includes('não foi encontrado')) {
+        msg = `Impressora "${this.printerConfig.shareName}" não encontrada. Verifique o compartilhamento.`;
+      } else if (error.message.includes('acesso negado')) {
+        msg = 'Acesso negado à impressora.';
+      }
+      
+      return { success: false, message: msg, error: error.message };
+    }
+  }
+
+  /**
+   * Gera ticket e imprime diretamente
+   */
+  async generateAndPrint(sale, storeInfo = null) {
+    const ticketInfo = await this.generateSaleTicket(sale, storeInfo);
+    const printResult = await this.printDirect(ticketInfo.filepath);
+    
+    return {
+      ticket: ticketInfo,
+      printed: printResult.success,
+      printMessage: printResult.message
+    };
+  }
+
+  /**
+   * Testa conexão com a impressora
+   */
+  async testConnection() {
+    if (!this.printerConfig.enabled) {
+      return { success: false, message: 'Impressão direta não habilitada.' };
+    }
+
+    if (!this.printerConfig.shareName) {
+      return { success: false, message: 'Configure o nome do compartilhamento.' };
+    }
+
+    try {
+      const testTicket = await this.generateTestTicket({ name: 'Teste', model: 'Conexão' });
+      return await this.printDirect(testTicket.filepath);
+    } catch (error) {
+      return { success: false, message: 'Erro: ' + error.message };
     }
   }
 
@@ -300,6 +405,94 @@ class ThermalPrinterService {
       filepath,
       content,
       createdAt: stats.birthtime
+    };
+  }
+
+  /**
+   * Gera ticket de teste para verificar impressora
+   */
+  async generateTestTicket(printerInfo = {}) {
+    const lines = [];
+    const now = new Date();
+
+    // Comandos ESC/POS para inicialização
+    lines.push('\x1B\x40'); // Inicializar impressora
+    lines.push('\x1B\x61\x01'); // Centralizar
+
+    lines.push(this.separator('='));
+    lines.push('\x1B\x21\x30'); // Fonte grande e negrito
+    lines.push(this.center('TESTE DE IMPRESSAO'));
+    lines.push('\x1B\x21\x00'); // Fonte normal
+    lines.push(this.center('MERCADINHO PDV'));
+    lines.push(this.separator('='));
+    lines.push('');
+    
+    lines.push('\x1B\x61\x00'); // Alinhar à esquerda
+    lines.push(`Data: ${this.formatDateTime(now)}`);
+    lines.push(`Impressora: ${printerInfo.name || 'Epson TM-T20X'}`);
+    lines.push(`Modelo: ${printerInfo.model || 'M352A'}`);
+    lines.push('');
+    
+    lines.push(this.separator('-'));
+    lines.push('');
+    lines.push(this.center('Se voce esta lendo isso,'));
+    lines.push(this.center('a impressora esta OK!'));
+    lines.push('');
+    lines.push(this.separator('-'));
+    lines.push('');
+
+    // Teste de formatação de produtos
+    lines.push('TESTE DE FORMATACAO:');
+    lines.push('');
+    lines.push(this.formatProductLine('Arroz Tipo 1 5kg', 2, 25.00, 50.00));
+    lines.push('');
+    lines.push(this.formatProductLine('Feijao Preto 1kg', 1, 8.50, 8.50));
+    lines.push('');
+    lines.push(this.separator('-'));
+    lines.push('');
+
+    // Totais de teste
+    lines.push(`Subtotal:${' '.repeat(this.paperWidth - 9 - 8)}R$ 58,50`);
+    lines.push(`Desconto:${' '.repeat(this.paperWidth - 9 - 8)}-R$ 3,50`);
+    lines.push('');
+    
+    lines.push('\x1B\x21\x20'); // Fonte larga
+    lines.push(this.center('TOTAL: R$ 55,00'));
+    lines.push('\x1B\x21\x00'); // Fonte normal
+    lines.push('');
+
+    lines.push(this.separator('-'));
+    lines.push('PAGAMENTO:');
+    lines.push(`Dinheiro:${' '.repeat(this.paperWidth - 9 - 8)}R$ 60,00`);
+    lines.push(`Troco:${' '.repeat(this.paperWidth - 6 - 7)}R$ 5,00`);
+    lines.push('');
+
+    lines.push(this.separator('='));
+    lines.push('\x1B\x61\x01'); // Centralizar
+    lines.push('');
+    lines.push(this.center('IMPRESSAO OK!'));
+    lines.push(this.center('Sistema funcionando'));
+    lines.push('');
+    lines.push(this.separator('='));
+    lines.push('');
+    lines.push('');
+
+    // Comandos de corte do papel
+    lines.push('\x1D\x56\x41\x10'); // Cortar papel
+    lines.push('\x1B\x40'); // Inicializar impressora
+
+    const ticketContent = lines.join('\n');
+
+    // Salvar ticket de teste
+    const filename = `teste_impressora_${Date.now()}.txt`;
+    const filepath = path.join(this.ticketsDir, filename);
+    
+    await fs.promises.writeFile(filepath, ticketContent, 'utf-8');
+
+    return {
+      filename,
+      filepath,
+      content: ticketContent
     };
   }
 

@@ -119,7 +119,7 @@
 </template>
 
 <script setup>
-definePageMeta({ middleware: ['auth', 'admin'] })
+definePageMeta({ middleware: ['auth'] })
 
 const { get, post, put, del } = useApi()
 const categories = ref([])

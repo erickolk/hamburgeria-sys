@@ -135,7 +135,7 @@ import UserList from '~/components/settings/UserList.vue'
 import UserModal from '~/components/settings/UserModal.vue'
 import PasswordModal from '~/components/settings/PasswordModal.vue'
 
-definePageMeta({ middleware: ['admin'] })
+definePageMeta({ middleware: ['auth'] })
 
 const { get, post, put, delete: del } = useApi()
 const toast = useToast()

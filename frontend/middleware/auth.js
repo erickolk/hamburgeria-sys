@@ -1,9 +1,25 @@
-// TEMPORÁRIO: Autenticação desabilitada para testes sem Docker
-// TODO: Reabilitar autenticação quando necessário
+/**
+ * Middleware de Autenticação
+ * Verifica se o usuário está logado antes de acessar páginas protegidas
+ */
 export default defineNuxtRouteMiddleware((to, from) => {
-  // Autenticação desabilitada - permitir acesso a todas as páginas
-  // const { isLoggedIn } = useAuth()
-  // if (!isLoggedIn.value && to.path !== '/login') {
-  //   return navigateTo('/login')
-  // }
+  // Rotas públicas que não precisam de autenticação
+  const publicRoutes = ['/login', '/activate', '/blocked']
+  
+  if (publicRoutes.includes(to.path)) {
+    return
+  }
+
+  // Verificar se está logado
+  const { isLoggedIn, initAuth } = useAuth()
+  
+  // Inicializar autenticação (carregar token do localStorage)
+  if (process.client) {
+    initAuth()
+  }
+  
+  // Se não está logado, redirecionar para login
+  if (!isLoggedIn.value) {
+    return navigateTo('/login')
+  }
 })

@@ -1,46 +1,81 @@
 <template>
   <div class="bg-white rounded-lg p-6 border border-gray-200">
-    <div v-if="!isElectron" class="text-center p-8 bg-gray-50 rounded-lg">
-      <p class="text-gray-500">
-        As configurações de hardware só estão disponíveis no aplicativo Desktop.
-      </p>
-    </div>
-
-    <div v-else class="space-y-8">
+    <div class="space-y-8">
       <!-- Impressora Térmica -->
       <div class="space-y-4">
-        <h3 class="text-lg font-medium border-b pb-2">Impressora Térmica</h3>
+        <h3 class="text-lg font-medium border-b pb-2">🖨️ Impressora Térmica</h3>
         <p class="text-sm text-gray-500">
           Configure a impressora térmica compartilhada no Windows.
-          <br>
-          <span class="text-xs">Ex: Compartilhe a impressora com o nome "Termica" e insira abaixo.</span>
         </p>
+        
+        <div class="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+          <strong>Como configurar:</strong>
+          <ol class="list-decimal ml-4 mt-1 space-y-1">
+            <li>Abra o <strong>Painel de Controle</strong> → <strong>Dispositivos e Impressoras</strong></li>
+            <li>Clique direito na impressora → <strong>Propriedades da impressora</strong></li>
+            <li>Aba <strong>Compartilhamento</strong> → Marque "Compartilhar esta impressora"</li>
+            <li>Nome do compartilhamento: <code class="bg-blue-100 px-1 rounded">Termica</code> (sem acentos)</li>
+            <li>Digite o mesmo nome abaixo e clique em Salvar</li>
+          </ol>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+        <div class="flex items-center gap-4 mb-4">
+          <label class="inline-flex items-center cursor-pointer">
+            <input 
+              type="checkbox" 
+              v-model="form.printerEnabled" 
+              class="checkbox checkbox-success"
+            >
+            <span class="ml-2 text-sm font-medium">
+              {{ form.printerEnabled ? '✓ Impressão Direta Ativada' : 'Impressão Direta Desativada' }}
+            </span>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label class="block text-sm font-medium mb-1">Nome do Compartilhamento</label>
+            <label class="block text-sm font-medium mb-1">Nome do Compartilhamento *</label>
             <input 
               v-model="form.printerName" 
               type="text" 
               class="input w-full" 
-              placeholder="Ex: Termica" 
+              placeholder="Ex: Termica"
+              :disabled="!form.printerEnabled"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Host (opcional)</label>
+            <input 
+              v-model="form.printerHost" 
+              type="text" 
+              class="input w-full" 
+              placeholder="localhost"
+              :disabled="!form.printerEnabled"
             />
           </div>
           <div>
             <button 
-              class="btn btn-outline" 
+              class="btn btn-outline w-full" 
               @click="testPrinter"
-              :disabled="!form.printerName || testingPrinter"
+              :disabled="!form.printerEnabled || !form.printerName || testingPrinter"
             >
-              {{ testingPrinter ? 'Testando...' : '🖨️ Testar Impressão' }}
+              {{ testingPrinter ? 'Enviando...' : '🖨️ Testar Impressão' }}
             </button>
           </div>
         </div>
+
+        <!-- Status da impressora -->
+        <div v-if="printerStatus" class="p-3 rounded border" :class="printerStatus.success ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'">
+          <span class="font-medium">Status:</span> 
+          <span :class="printerStatus.success ? 'text-green-600' : 'text-yellow-700'">
+            {{ printerStatus.message }}
+          </span>
+        </div>
       </div>
 
-      <!-- Balança -->
-      <div class="space-y-4">
-        <h3 class="text-lg font-medium border-b pb-2">Balança (Toledo)</h3>
+      <!-- Balança (só no Electron) -->
+      <div v-if="isElectron" class="space-y-4">
+        <h3 class="text-lg font-medium border-b pb-2">⚖️ Balança (Toledo)</h3>
         <p class="text-sm text-gray-500">
           Configure a balança conectada via porta Serial (COM).
         </p>
@@ -83,13 +118,27 @@
         </div>
       </div>
 
-      <div class="pt-4 border-t flex justify-end">
+      <!-- Aviso para versão Web -->
+      <div v-if="!isElectron" class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <p class="text-gray-600 text-sm">
+          ℹ️ <strong>Nota:</strong> A balança e leitor de código de barras só funcionam no aplicativo Desktop.
+          A impressora funciona se estiver compartilhada na rede local.
+        </p>
+      </div>
+
+      <div class="pt-4 border-t flex justify-end gap-3">
+        <button 
+          class="btn btn-outline" 
+          @click="loadConfig"
+        >
+          ↻ Recarregar
+        </button>
         <button 
           class="btn btn-primary" 
           @click="saveConfig" 
           :disabled="saving"
         >
-          {{ saving ? 'Salvando...' : 'Salvar Configurações' }}
+          {{ saving ? 'Salvando...' : '💾 Salvar Configurações' }}
         </button>
       </div>
     </div>
@@ -100,17 +149,25 @@
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
-const { 
-  isElectron, 
-  getSerialPorts, 
-  getHardwareConfig, 
-  saveHardwareConfig,
-  readScaleWeight,
-  printThermal 
-} = useElectron()
+const { get, put, post } = useApi()
+
+// Verificar se está no Electron
+const isElectron = ref(false)
+const electronFunctions = ref(null)
+
+// Tentar carregar funções do Electron
+onMounted(() => {
+  if (typeof window !== 'undefined' && window.electronAPI) {
+    isElectron.value = true
+    electronFunctions.value = window.electronAPI
+  }
+  loadConfig()
+})
 
 const form = reactive({
+  printerEnabled: false,
   printerName: '',
+  printerHost: 'localhost',
   scalePort: ''
 })
 
@@ -120,38 +177,68 @@ const testingPrinter = ref(false)
 const testingScale = ref(false)
 const scaleResult = ref(null)
 const scaleError = ref(null)
+const printerStatus = ref(null)
 
 const loadPorts = async () => {
-  if (!isElectron.value) return
-  const res = await getSerialPorts()
-  if (res.success) {
-    serialPorts.value = res.ports || []
-  } else {
-    toast.error('Erro ao listar portas seriais')
+  if (!isElectron.value || !electronFunctions.value?.getSerialPorts) return
+  try {
+    const res = await electronFunctions.value.getSerialPorts()
+    if (res.success) {
+      serialPorts.value = res.ports || []
+    }
+  } catch (err) {
+    console.error('Erro ao listar portas:', err)
   }
 }
 
 const loadConfig = async () => {
-  if (!isElectron.value) return
-  const config = await getHardwareConfig()
-  if (config) {
-    form.printerName = config.printerName || ''
-    form.scalePort = config.scalePort || ''
+  try {
+    // Carregar config do backend
+    const res = await get('/hardware/printer')
+    if (res.success && res.data) {
+      form.printerEnabled = res.data.enabled || false
+      form.printerName = res.data.shareName || ''
+      form.printerHost = res.data.host || 'localhost'
+    }
+    
+    // Se no Electron, carregar config local também
+    if (isElectron.value && electronFunctions.value?.getHardwareConfig) {
+      const config = await electronFunctions.value.getHardwareConfig()
+      if (config) {
+        form.scalePort = config.scalePort || ''
+      }
+      loadPorts()
+    }
+  } catch (err) {
+    console.error('Erro ao carregar config:', err)
   }
 }
 
 const saveConfig = async () => {
-  if (!isElectron.value) return
-  
   saving.value = true
   try {
-    const res = await saveHardwareConfig({ ...form })
+    // Salvar no backend (impressora)
+    const res = await put('/hardware/printer', {
+      enabled: form.printerEnabled,
+      shareName: form.printerName,
+      host: form.printerHost || 'localhost'
+    })
+    
+    // Se no Electron, salvar config local também
+    if (isElectron.value && electronFunctions.value?.saveHardwareConfig) {
+      await electronFunctions.value.saveHardwareConfig({
+        printerName: form.printerName,
+        scalePort: form.scalePort
+      })
+    }
+    
     if (res.success) {
       toast.success('Configurações salvas!')
     } else {
       toast.error(res.error || 'Erro ao salvar')
     }
   } catch (err) {
+    console.error('Erro ao salvar:', err)
     toast.error('Erro ao salvar configurações')
   } finally {
     saving.value = false
@@ -159,36 +246,45 @@ const saveConfig = async () => {
 }
 
 const testPrinter = async () => {
-  // Para testar, precisamos salvar primeiro ou passar o nome temporariamente?
-  // A API usa o config salvo. Então vamos salvar temporariamente ou assumir que o usuário salvou.
-  // Vamos salvar antes de testar para garantir.
-  
-  if (!form.printerName) return
+  if (!form.printerName) {
+    toast.warning('Digite o nome do compartilhamento da impressora')
+    return
+  }
   
   testingPrinter.value = true
+  printerStatus.value = null
+  
   try {
-    // Salvar config atual
-    await saveHardwareConfig({ ...form })
+    // Primeiro salvar as configurações
+    await saveConfig()
     
-    // Criar arquivo de teste fictício não é simples pois o backend espera POST.
-    // Mas podemos tentar imprimir algo simples se o backend permitir,
-    // ou apenas testar se o comando funciona.
+    // Testar impressão via API do backend
+    const res = await post('/hardware/printer/test', {})
     
-    // Como a função printThermal espera um path de arquivo,
-    // e não temos um "test print" endpoint no backend que retorne um arquivo de teste sem venda,
-    // vamos tentar imprimir um arquivo de texto simples criado temporariamente?
-    // Não temos acesso ao FS aqui.
-    
-    // O ideal seria um endpoint no backend: POST /api/printer/test -> retorna path de um ticket de teste.
-    // Mas sem alterar backend, podemos tentar imprimir um ticket de uma venda antiga?
-    // Ou informar ao usuário para realizar uma venda.
-    
-    // Alternativa: Enviar string direta? O backend electron main suporta string path.
-    // Se passarmos um texto, o copy vai falhar.
-    
-    toast.info('Para testar, realize uma venda ou reimprima um ticket existente.')
-    
+    if (res.success && res.data) {
+      printerStatus.value = {
+        success: res.data.success,
+        message: res.data.message
+      }
+      
+      if (res.data.success) {
+        toast.success('🖨️ Ticket enviado para impressora!')
+      } else {
+        toast.warning(res.data.message || 'Verifique a configuração da impressora')
+      }
+    } else {
+      printerStatus.value = {
+        success: false,
+        message: res.error || 'Erro ao testar'
+      }
+      toast.warning(res.error || 'Erro no teste')
+    }
   } catch (err) {
+    console.error('Erro no teste:', err)
+    printerStatus.value = {
+      success: false,
+      message: err.message || 'Erro ao testar impressora'
+    }
     toast.error('Erro no teste de impressão')
   } finally {
     testingPrinter.value = false
@@ -196,23 +292,29 @@ const testPrinter = async () => {
 }
 
 const testScale = async () => {
-  if (!form.scalePort) return
+  if (!form.scalePort || !isElectron.value) return
   
   testingScale.value = true
   scaleResult.value = null
   scaleError.value = null
   
   try {
-    // Salvar config atual para o main process saber qual porta usar
-    await saveHardwareConfig({ ...form })
+    if (electronFunctions.value?.saveHardwareConfig) {
+      await electronFunctions.value.saveHardwareConfig({
+        printerName: form.printerName,
+        scalePort: form.scalePort
+      })
+    }
     
-    const res = await readScaleWeight()
-    if (res.success) {
-      scaleResult.value = res.weight
-      toast.success(`Peso lido: ${res.weight} kg`)
-    } else {
-      scaleError.value = res.error
-      toast.error(res.error || 'Erro ao ler balança')
+    if (electronFunctions.value?.readScaleWeight) {
+      const res = await electronFunctions.value.readScaleWeight()
+      if (res.success) {
+        scaleResult.value = res.weight
+        toast.success(`Peso lido: ${res.weight} kg`)
+      } else {
+        scaleError.value = res.error
+        toast.error(res.error || 'Erro ao ler balança')
+      }
     }
   } catch (err) {
     scaleError.value = err.message
@@ -220,12 +322,4 @@ const testScale = async () => {
     testingScale.value = false
   }
 }
-
-onMounted(() => {
-  if (isElectron.value) {
-    loadPorts()
-    loadConfig()
-  }
-})
 </script>
-

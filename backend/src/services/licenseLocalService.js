@@ -11,7 +11,12 @@ const prisma = new PrismaClient();
 // Constantes
 const GRACE_PERIOD_DAYS = 15;
 const JWT_LICENSE_SECRET = process.env.JWT_LICENSE_SECRET || process.env.JWT_SECRET || 'license-secret-key';
-const VPS_API_URL = process.env.VPS_API_URL || 'https://evomercearia-backend.d3vbpv.easypanel.host';
+
+// Em desenvolvimento local, usa o backend local. Em produção, usa a VPS real.
+const IS_LOCAL_DEV = process.env.NODE_ENV !== 'production' && !process.env.VPS_API_URL;
+const VPS_API_URL = process.env.VPS_API_URL || (IS_LOCAL_DEV ? 'http://localhost:3001' : 'https://evomercearia-backend.d3vbpv.easypanel.host');
+
+console.log(`📡 License Service conectando em: ${VPS_API_URL}`);
 
 /**
  * Calcula o status local baseado na data de expiração do token
