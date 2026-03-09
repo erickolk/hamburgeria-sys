@@ -78,6 +78,7 @@ const schemas = {
     batchTracking: Joi.boolean().default(false),
     category: Joi.string().optional().allow(''),
     categoryId: Joi.string().optional().allow('', null),
+    recipeId: Joi.string().optional().allow('', null), // <-- ADICIONADO AQUI
     observations: Joi.string().optional().allow('', null),
     supplierId: Joi.string().optional().allow('', null)
   }),

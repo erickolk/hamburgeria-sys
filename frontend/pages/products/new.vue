@@ -12,14 +12,18 @@
             <label class="block text-sm font-medium mb-1">SKU</label>
             <div class="flex gap-2">
               <input v-model="productForm.sku" type="text" class="input w-full" placeholder="Gerado automaticamente" />
-              <button type="button" class="btn btn-outline" @click="productForm.sku = generateSKU(productForm.name)">Gerar</button>
+              <button type="button" class="btn btn-outline"
+                @click="productForm.sku = generateSKU(productForm.name)">Gerar</button>
             </div>
             <p class="text-xs text-gray-500 mt-1">Ex.: PRD-ABC-202411-1234 (alterável)</p>
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Código de Barras</label>
-            <input ref="barcodeInput" v-model="productForm.barcode" type="text" inputmode="numeric" class="input w-full" placeholder="Escaneie ou digite o código" @input="productForm.barcode = productForm.barcode.replace(/\D/g, '')" @keyup.enter="onBarcodeEnter" />
-            <p class="text-xs text-gray-500 mt-1">Use o bipe do leitor: o campo aceita apenas números. Ao pressionar Enter após o bipe, validamos duplicidade.</p>
+            <input ref="barcodeInput" v-model="productForm.barcode" type="text" inputmode="numeric" class="input w-full"
+              placeholder="Escaneie ou digite o código"
+              @input="productForm.barcode = productForm.barcode.replace(/\D/g, '')" @keyup.enter="onBarcodeEnter" />
+            <p class="text-xs text-gray-500 mt-1">Use o bipe do leitor: o campo aceita apenas números. Ao pressionar
+              Enter após o bipe, validamos duplicidade.</p>
           </div>
           <div class="col-span-2">
             <label class="block text-sm font-medium mb-1">Nome *</label>
@@ -34,6 +38,42 @@
               </select>
               <button type="button" class="btn btn-outline" @click="showNewCategoryModal = true">+ Nova</button>
             </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Ficha Técnica (Receita)</label>
+            <select v-model="productForm.recipeId" class="input w-full">
+              <option value="">Nenhuma (Produto Simples/Revenda)</option>
+              <option v-for="r in recipes" :key="r.id" :value="r.id">
+                {{ r.name }} (Custo: R$ {{ Number(r.totalCost).toFixed(2) }})
+              </option>
+            </select>
+          </div>
+
+          <div v-if="selectedRecipe" class="col-span-2 bg-orange-50 border border-orange-200 rounded-lg p-4 my-2">
+            <h3 class="text-sm font-bold text-orange-800 mb-3">🧠 Precificação Inteligente</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div>
+                <label class="block text-xs text-orange-700 mb-1">Custo da Ficha</label>
+                <div class="text-lg font-semibold text-gray-900">R$ {{ recipeCost.toFixed(2) }}</div>
+              </div>
+              <div>
+                <label class="block text-xs text-orange-700 mb-1">Markup Desejado (%)</label>
+                <input v-model.number="desiredMarkup" type="number" class="input w-full border-orange-300" />
+              </div>
+              <div>
+                <label class="block text-xs text-orange-700 mb-1">Preço Sugerido</label>
+                <div class="flex items-center justify-between bg-white px-3 py-2 border border-orange-200 rounded">
+                  <span class="font-bold text-green-600">R$ {{ suggestedPrice.toFixed(2) }}</span>
+                  <button type="button"
+                    class="text-xs bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded shadow-sm"
+                    @click="applySuggestedPrice">
+                    Aplicar Valores
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-orange-600 mt-2">Markup é a margem sobre o custo. O botão "Aplicar" preenche
+              automaticamente os campos de Preço de Custo e Venda abaixo.</p>
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Fornecedor</label>
@@ -52,7 +92,8 @@
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Estoque Inicial *</label>
-            <input v-model.number="productForm.stockQuantity" type="number" step="0.001" class="input w-full" required />
+            <input v-model.number="productForm.stockQuantity" type="number" step="0.001" class="input w-full"
+              required />
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Ponto de Reposição *</label>
@@ -78,7 +119,8 @@
           <template v-if="productForm.batchTracking">
             <div>
               <label class="block text-sm font-medium mb-1">Lote Inicial</label>
-              <input v-model="productForm.initialBatchNumber" type="text" class="input w-full" placeholder="Ex.: LOTE-20241115" />
+              <input v-model="productForm.initialBatchNumber" type="text" class="input w-full"
+                placeholder="Ex.: LOTE-20241115" />
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Validade (do lote)</label>
@@ -88,29 +130,29 @@
 
           <div class="col-span-2">
             <label class="block text-sm font-medium mb-1">Observações</label>
-            <textarea v-model="productForm.observations" class="input w-full" rows="3" placeholder="Informações adicionais sobre o produto..."></textarea>
+            <textarea v-model="productForm.observations" class="input w-full" rows="3"
+              placeholder="Informações adicionais sobre o produto..."></textarea>
           </div>
 
           <div class="col-span-2">
             <label class="block text-sm font-medium mb-1">Fotos do Produto</label>
             <div class="border-2 border-dashed border-gray-300 rounded-lg p-4">
               <div class="flex flex-wrap gap-3 mb-3">
-                <div v-for="(photo, index) in productPhotos" :key="index" class="relative w-24 h-24 border rounded overflow-hidden">
+                <div v-for="(photo, index) in productPhotos" :key="index"
+                  class="relative w-24 h-24 border rounded overflow-hidden">
                   <img :src="photo.url" class="w-full h-full object-cover" />
-                  <button type="button" @click="removePhoto(index)" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs">×</button>
-                  <button type="button" @click="setMainPhoto(index)" class="absolute bottom-1 left-1 bg-blue-500 text-white rounded px-1 text-xs" :class="{ 'bg-green-500': photo.isMain }">
+                  <button type="button" @click="removePhoto(index)"
+                    class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs">×</button>
+                  <button type="button" @click="setMainPhoto(index)"
+                    class="absolute bottom-1 left-1 bg-blue-500 text-white rounded px-1 text-xs"
+                    :class="{ 'bg-green-500': photo.isMain }">
                     {{ photo.isMain ? '★ Principal' : 'Marcar' }}
                   </button>
                 </div>
               </div>
               <div class="flex gap-2">
-                <input 
-                  v-model="newPhotoUrl" 
-                  type="url" 
-                  class="input flex-1" 
-                  placeholder="Cole a URL da foto aqui"
-                  @keyup.enter="addPhoto"
-                />
+                <input v-model="newPhotoUrl" type="url" class="input flex-1" placeholder="Cole a URL da foto aqui"
+                  @keyup.enter="addPhoto" />
                 <button type="button" class="btn btn-outline" @click.prevent="addPhoto">Adicionar Foto</button>
               </div>
               <p class="text-xs text-gray-500 mt-2">Adicione URLs de fotos do produto. A primeira será a principal.</p>
@@ -122,7 +164,10 @@
           <NuxtLink to="/products" class="btn btn-outline" type="button">Cancelar</NuxtLink>
           <button type="button" class="btn btn-primary" @click.prevent="saveProduct">Salvar</button>
         </div>
-        <p class="text-xs text-gray-500 mt-3">Dica: pressione <kbd class="px-1 rounded bg-gray-100 border">Ctrl</kbd>+<kbd class="px-1 rounded bg-gray-100 border">G</kbd> para sugerir um novo SKU. O código de barras deve ser escaneado/fornecido pela fábrica.</p>
+        <p class="text-xs text-gray-500 mt-3">Dica: pressione <kbd
+            class="px-1 rounded bg-gray-100 border">Ctrl</kbd>+<kbd class="px-1 rounded bg-gray-100 border">G</kbd> para
+          sugerir um novo SKU. O código de barras deve ser
+          escaneado/fornecido pela fábrica.</p>
       </form>
     </div>
 
@@ -174,8 +219,28 @@ const productForm = reactive({
   saleUnit: 'UN',
   batchTracking: false,
   initialBatchNumber: '',
-  expiryDate: ''
+  expiryDate: '',
+  recipeId: ''
 })
+const recipes = ref([])
+const desiredMarkup = ref(150) // Começa sugerindo 150% de markup
+
+// Lógica de Precificação
+const selectedRecipe = computed(() => recipes.value.find(r => r.id === productForm.recipeId))
+const recipeCost = computed(() => selectedRecipe.value ? Number(selectedRecipe.value.totalCost) : 0)
+const suggestedPrice = computed(() => recipeCost.value * (1 + (desiredMarkup.value / 100)))
+
+const applySuggestedPrice = () => {
+  productForm.salePrice = Number(suggestedPrice.value.toFixed(2))
+  productForm.costPrice = Number(recipeCost.value.toFixed(2))
+  toast.success('Preços atualizados com base na ficha técnica!')
+}
+
+// Carregar Receitas
+const loadRecipes = async () => {
+  const res = await get('/api/recipes?isActive=true')
+  if (res.success) recipes.value = res.data.recipes || []
+}
 
 const loadSuppliers = async () => {
   const res = await get('/api/suppliers')
@@ -189,7 +254,7 @@ const loadCategories = async () => {
 
 const createCategory = async () => {
   if (!newCategoryName.value.trim()) return
-  
+
   const res = await post('/api/categories', { name: newCategoryName.value.trim() })
   if (res.success) {
     toast.success('Categoria criada!')
@@ -208,7 +273,7 @@ const addPhoto = () => {
     toast.warning('Por favor, insira uma URL válida')
     return
   }
-  
+
   // Validar se é uma URL válida
   try {
     new URL(url)
@@ -216,13 +281,13 @@ const addPhoto = () => {
     toast.warning('Por favor, insira uma URL válida (ex: https://exemplo.com/foto.jpg)')
     return
   }
-  
+
   // Verificar se a URL já foi adicionada
   if (productPhotos.value.some(p => p.url === url)) {
     toast.warning('Esta foto já foi adicionada')
     return
   }
-  
+
   const isMain = productPhotos.value.length === 0
   productPhotos.value.push({
     url,
@@ -264,6 +329,7 @@ const saveProduct = async () => {
     reorderPoint: productForm.reorderPoint,
     category: productForm.category,
     categoryId: productForm.categoryId || null,
+    recipeId: productForm.recipeId || null,
     observations: productForm.observations || null,
     supplierId: productForm.supplierId || null,
     saleUnit: productForm.saleUnit,
@@ -273,7 +339,7 @@ const saveProduct = async () => {
   const res = await post('/api/products', productPayload)
   if (res.success) {
     const created = res.data
-    
+
     // Adicionar fotos
     if (productPhotos.value.length > 0) {
       for (const photo of productPhotos.value) {
@@ -283,7 +349,7 @@ const saveProduct = async () => {
         })
       }
     }
-    
+
     // Se rastreio por lote estiver habilitado e houve quantidade inicial, criar lote com validade via ajuste de estoque
     if (productForm.batchTracking && productForm.stockQuantity > 0 && productForm.initialBatchNumber) {
       const adjustBody = {
@@ -308,6 +374,7 @@ const saveProduct = async () => {
 onMounted(() => {
   loadSuppliers()
   loadCategories()
+  loadRecipes()
   // Pré-sugerir SKU
   productForm.sku = generateSKU('PRODUTO')
   // Focar no campo de código de barras para facilitar o bipe

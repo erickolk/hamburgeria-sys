@@ -92,6 +92,7 @@ router.get('/', async (req, res) => {
           categoryRel: {
             select: { id: true, name: true }
           },
+          recipe: true,
           photos: {
             orderBy: [
               { isMain: 'desc' },
@@ -151,6 +152,7 @@ router.get('/:id', async (req, res) => {
         supplier: {
           select: { id: true, name: true }
         },
+        recipe: true,
         categoryRel: {
           select: { id: true, name: true }
         },
@@ -267,7 +269,8 @@ router.post('/',
           costPrice: parseFloat(productData.costPrice),
           salePrice: parseFloat(productData.salePrice),
           stockQuantity: productData.stockQuantity !== undefined ? parseFloat(productData.stockQuantity) : undefined,
-          reorderPoint: productData.reorderPoint !== undefined ? parseFloat(productData.reorderPoint) : undefined
+          reorderPoint: productData.reorderPoint !== undefined ? parseFloat(productData.reorderPoint) : undefined,
+          recipeId: productData.recipeId || null
         },
         include: {
           supplier: {
@@ -397,7 +400,8 @@ router.put('/:id',
           costPrice: updateData.costPrice ? parseFloat(updateData.costPrice) : undefined,
           salePrice: updateData.salePrice ? parseFloat(updateData.salePrice) : undefined,
           stockQuantity: updateData.stockQuantity !== undefined ? parseFloat(updateData.stockQuantity) : undefined,
-          reorderPoint: updateData.reorderPoint !== undefined ? parseFloat(updateData.reorderPoint) : undefined
+          reorderPoint: updateData.reorderPoint !== undefined ? parseFloat(updateData.reorderPoint) : undefined,
+          recipeId: updateData.recipeId !== undefined ? updateData.recipeId : undefined
         },
         include: {
           supplier: {
