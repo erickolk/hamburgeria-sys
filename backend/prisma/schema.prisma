@@ -27,6 +27,9 @@ model User {
   auditLogs      AuditLog[]
   cashRegisters  CashRegister[]
   cashMovements  CashMovement[]
+  productionBatches   ProductionBatch[]
+  ingredientMovements IngredientMovement[]
+  purchaseIngredients PurchaseIngredient[]
 
   @@map("users")
 }
@@ -46,6 +49,7 @@ model Product {
   categoryId    String?  @map("category_id")
   observations  String?  @db.Text
   supplierId    String?  @map("supplier_id")
+  recipeId      String?  @map("recipe_id")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -61,6 +65,7 @@ model Product {
   stockMovements StockMovement[]
   batches        ProductBatch[]
   photos         ProductPhoto[]
+  recipe         Recipe?         @relation(fields: [recipeId], references: [id])
 
   @@map("products")
 }
@@ -93,6 +98,8 @@ model Supplier {
   // Relations
   products  Product[]
   purchases Purchase[]
+  ingredients         Ingredient[]
+  purchaseIngredients PurchaseIngredient[]
 
   @@map("suppliers")
 }
@@ -501,4 +508,164 @@ model LicenseLocal {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@map("license_local")
+}
+// ============================================
+// HAMBURGERIA — MÓDULO DE INGREDIENTES E FICHAS TÉCNICAS
+// ============================================
+
+// Unidades de medida para ingredientes (separado do SaleUnit existente)
+enum MeasurementUnit {
+  G   // Gramas
+  KG  // Quilogramas
+  ML  // Mililitros
+  L   // Litros
+  UN  // Unidade
+}
+
+// Ingredientes — matéria-prima da hamburgueria
+model Ingredient {
+  id           String          @id @default(cuid())
+  name         String          @db.VarChar(255)
+  unit         MeasurementUnit
+  currentStock Decimal         @default(0) @map("current_stock") @db.Decimal(12, 3)
+  averageCost  Decimal         @default(0) @map("average_cost") @db.Decimal(10, 2)
+  reorderPoint Decimal         @default(0) @map("reorder_point") @db.Decimal(12, 3)
+  supplierId   String?         @map("supplier_id")
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  supplier               Supplier?               @relation(fields: [supplierId], references: [id])
+  recipeIngredients      RecipeIngredient[]
+  ingredientMovements    IngredientMovement[]
+  purchaseIngredientItems PurchaseIngredientItem[]
+
+  @@index([name])
+  @@index([isActive])
+  @@index([supplierId])
+  @@map("ingredients")
+}
+
+// Fichas técnicas — receita de cada item do cardápio
+model Recipe {
+  id             String          @id @default(cuid())
+  name           String          @db.VarChar(255)
+  yieldQuantity  Decimal         @map("yield_quantity") @db.Decimal(12, 3)
+  yieldUnit      MeasurementUnit @map("yield_unit")
+  observations   String?         @db.Text
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  recipeIngredients RecipeIngredient[]
+  products          Product[]
+  productionBatches ProductionBatch[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("recipes")
+}
+
+// Ingredientes de cada ficha técnica
+model RecipeIngredient {
+  id             String          @id @default(cuid())
+  recipeId       String          @map("recipe_id")
+  ingredientId   String          @map("ingredient_id")
+  quantity       Decimal         @db.Decimal(12, 3)
+  unit           MeasurementUnit
+  lossPercentage Decimal         @default(0) @map("loss_percentage") @db.Decimal(5, 2)
+
+  // Relations
+  recipe     Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@index([recipeId])
+  @@index([ingredientId])
+  @@map("recipe_ingredients")
+}
+
+// Pré-produções (ex: blend de carne, maionese caseira)
+model ProductionBatch {
+  id               String          @id @default(cuid())
+  recipeId         String          @map("recipe_id")
+  producedQuantity Decimal         @map("produced_quantity") @db.Decimal(12, 3)
+  yieldUnit        MeasurementUnit @map("yield_unit")
+  totalCost        Decimal         @map("total_cost") @db.Decimal(10, 2)
+  observations     String?         @db.Text
+  producedAt       DateTime        @default(now()) @map("produced_at")
+  userId           String          @map("user_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  recipe Recipe @relation(fields: [recipeId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([recipeId])
+  @@index([producedAt])
+  @@map("production_batches")
+}
+
+// Movimentações de estoque de INGREDIENTES (separado do StockMovement de produtos)
+model IngredientMovement {
+  id           String                  @id @default(cuid())
+  ingredientId String                  @map("ingredient_id")
+  quantity     Decimal                 @db.Decimal(12, 3)
+  type         IngredientMovementType
+  unitCost     Decimal?                @map("unit_cost") @db.Decimal(10, 2)
+  reason       String?
+  referenceId  String?                 @map("reference_id") // ID da venda, compra, produção
+  userId       String                  @map("user_id")
+  date         DateTime                @default(now())
+
+  // Relations
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@index([ingredientId, date])
+  @@map("ingredient_movements")
+}
+
+enum IngredientMovementType {
+  IN        // Entrada de compra
+  OUT       // Saída por venda (CMV)
+  ADJUST    // Ajuste manual
+  LOSS      // Perda/descarte
+  PRODUCTION_IN  // Entrada de pré-produção
+  PRODUCTION_OUT // Saída para pré-produção
+}
+
+// Compras de ingredientes (separado de Purchase de produtos)
+model PurchaseIngredient {
+  id         String                   @id @default(cuid())
+  supplierId String                   @map("supplier_id")
+  userId     String                   @map("user_id")
+  total      Decimal                  @db.Decimal(10, 2)
+  status     PurchaseStatus
+  date       DateTime                 @default(now())
+  createdAt  DateTime                 @default(now()) @map("created_at")
+
+  // Relations
+  supplier Supplier                 @relation(fields: [supplierId], references: [id])
+  user     User                     @relation(fields: [userId], references: [id])
+  items    PurchaseIngredientItem[]
+
+  @@index([supplierId])
+  @@index([date])
+  @@map("purchase_ingredients")
+}
+
+model PurchaseIngredientItem {
+  id                   String  @id @default(cuid())
+  purchaseIngredientId String  @map("purchase_ingredient_id")
+  ingredientId         String  @map("ingredient_id")
+  quantity             Decimal @db.Decimal(12, 3)
+  unitCost             Decimal @map("unit_cost") @db.Decimal(10, 2)
+
+  // Relations
+  purchaseIngredient PurchaseIngredient @relation(fields: [purchaseIngredientId], references: [id], onDelete: Cascade)
+  ingredient         Ingredient         @relation(fields: [ingredientId], references: [id])
+
+  @@map("purchase_ingredient_items")
 }
