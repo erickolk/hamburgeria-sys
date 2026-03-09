@@ -335,7 +335,7 @@ router.post('/', validate(schemas.sale), async (req, res) => {
       });
     }
 
-    const sale = await prisma.$transaction(async (tx) => {
+const sale = await prisma.$transaction(async (tx) => {
       // Verificar estoque de todos os produtos
       for (const item of items) {
         const product = await tx.product.findUnique({
@@ -452,9 +452,81 @@ router.post('/', validate(schemas.sale), async (req, res) => {
             }
           });
         }
+
+        // ============================================
+        // BAIXA AUTOMÁTICA DE INGREDIENTES (CMV)
+        // Se o produto tem ficha técnica, consome ingredientes
+        // ============================================
+        if (product && product.recipeId) {
+          const recipeIngredients = await tx.recipeIngredient.findMany({
+            where: { recipeId: product.recipeId },
+            include: { ingredient: true }
+          });
+
+          let theoreticalCMV = 0;
+
+          for (const ri of recipeIngredients) {
+            const quantityConsumed = parseFloat(ri.quantity)
+              * (1 + parseFloat(ri.lossPercentage) / 100)
+              * requested;
+
+            const ingredient = ri.ingredient;
+            const newStock = parseFloat(ingredient.currentStock) - quantityConsumed;
+
+            // Bloqueia venda se qualquer ingrediente ficar negativo
+            if (newStock < 0) {
+              throw Object.assign(
+                new Error(`Estoque insuficiente do ingrediente "${ingredient.name}". Disponível: ${parseFloat(ingredient.currentStock).toFixed(3)} ${ingredient.unit}, necessário: ${quantityConsumed.toFixed(3)} ${ri.unit}`),
+                { status: 409 }
+              );
+            }
+
+            // Decrementa estoque do ingrediente
+            await tx.ingredient.update({
+              where: { id: ingredient.id },
+              data: { currentStock: newStock }
+            });
+
+            // Registra movimentação de ingrediente
+            await tx.ingredientMovement.create({
+              data: {
+                ingredientId: ingredient.id,
+                quantity: quantityConsumed,
+                type: 'OUT',
+                unitCost: parseFloat(ingredient.averageCost),
+                reason: `Venda #${newSale.id} — ${product.name || rawItem.productId}`,
+                referenceId: newSale.id,
+                userId: req.user.id
+              }
+            });
+
+            theoreticalCMV += quantityConsumed * parseFloat(ingredient.averageCost);
+          }
+
+          // Registra CMV teórico no log de auditoria da venda
+          if (theoreticalCMV > 0) {
+            await tx.auditLog.create({
+              data: {
+                userId: req.user.id,
+                action: 'CMV',
+                entity: 'SALE_ITEM',
+                entityId: newSale.id,
+                details: {
+                  productId: rawItem.productId,
+                  recipeId: product.recipeId,
+                  quantity: requested,
+                  theoreticalCMV: theoreticalCMV.toFixed(2)
+                }
+              }
+            });
+          }
+        }
+        // ============================================
+        // FIM DA BAIXA AUTOMÁTICA
+        // ============================================
       }
 
-      // Log de auditoria
+      // Log de auditoria da venda
       await tx.auditLog.create({
         data: {
           userId: req.user.id,
